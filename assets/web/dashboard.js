@@ -91,6 +91,11 @@
     text('wind', finite(d.wind_mph) ? rounded(wind(d.wind_mph)) + ' '+windUnit() : '—');
     const directions = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
     text('direction', finite(d.direction_deg) ? directions[Math.round(d.direction_deg / 22.5) % 16] + ' · ' + Math.round(d.direction_deg) + '°' : 'Direction unavailable');
+    const directionKnown=finite(d.direction_deg),directionStale=!!(stale&8)||['Data stale','Disconnected','No signal'].includes(value.sensor_status);
+    $('wind-compass-arrow').toggleAttribute('hidden',!directionKnown);
+    if(directionKnown)$('wind-compass-arrow').setAttribute('transform','rotate('+d.direction_deg+' 40 40)');
+    $('wind-compass').classList.toggle('aged-reading',directionStale);
+    $('wind-compass').setAttribute('aria-label',directionKnown?'Wind from '+$('direction').textContent+(directionStale?' · stale':''):'Wind direction unavailable');
     text('gust', finite(d.gust_mph) ? rounded(wind(d.gust_mph)) + ' '+windUnit() + (d.gust_partial ? ' *' : '') : '—');
     text('humidity', finite(d.humidity) ? Math.round(d.humidity) + ' %' : '—');
     text('rain', finite(value.rain_today_in) ? rounded(rain(value.rain_today_in), metricUnits()?1:2) + (metricUnits()?' mm':' in') + ((d.rain_partial ?? value.rain_partial) ? ' *' : '') : '—');
@@ -109,6 +114,8 @@
     reachable=false;
     text('source','Device unavailable · showing last received values');
     $('temperature').classList.add('stale-reading');
+    $('wind-compass').classList.add('aged-reading');
+    $('wind-compass').setAttribute('aria-label','Device unavailable · last received wind direction');
     $('sky').hidden = true;
     text('pressure','—');text('pressure-source','NWS · unverified');
     text('forecast-status','Device unavailable · forecast is unverified');
