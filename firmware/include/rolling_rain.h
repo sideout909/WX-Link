@@ -26,8 +26,9 @@ class RollingRain {
   }
   Total window(uint64_t now,uint64_t span)const{
     Total out;if(!data_||!state_.count||!span)return out;
-    const auto& latest=data_[(state_.head+state_.count-1)%kRainIntervals];
-    if(latest.end_ms>now || now-latest.end_ms>=span)return out;
+    const RainInterval* latest=nullptr;
+    for(size_t n=state_.count;n>0;--n){const auto& r=data_[(state_.head+n-1)%kRainIntervals];if(r.end_ms<=now){latest=&r;break;}}
+    if(!latest || now-latest->end_ms>=span)return out;
     out.valid=true;out.complete=now>=span;const uint64_t begin=now>=span?now-span:0;
     uint64_t covered=begin;
     for(size_t n=0;n<state_.count;++n){

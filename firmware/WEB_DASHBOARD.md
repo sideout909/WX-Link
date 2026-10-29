@@ -29,9 +29,9 @@ may request login again when switching hosts.
    rain today; light and UV index/full level; NWS pressure; the NWS-based sky graphic; and
    a prominent local-alert strip. The small one-hour temperature line bridges
    missed minutes, matching Home. Retained stale temperatures turn orange.
-2. **Trends:** select temperature, received wind peaks, light or humidity
+2. **Trends:** select temperature, received wind peaks, light, humidity or five-minute rain totals
    across the last 24 hours. Tap/point at the chart to inspect a minute.
-   Missing minutes break the detailed graph; real zero values remain visible.
+   Missing minutes break the detailed graph; real zero values remain visible. Rain bars end at the indicated time; incomplete or uncertain intervals are gaps.
 3. **Local forecast:** all retained NWS day/night periods (up to 14), full
    descriptions, wind, rain probabilities and issued time. Switch to the next
    24 hourly periods. Hourly cards scroll horizontally on phones; expandable
