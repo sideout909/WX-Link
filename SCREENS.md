@@ -86,7 +86,7 @@ history updates, serial output, uploads, or alert processing.
 
 ## Trends: rolling 24 hours
 
-Current firmware offers temperature, wind peak, light, humidity and five-minute rain totals; tap the
+Current firmware offers temperature, wind peak, light, humidity and hourly rain and observed cumulative rain; tap the
 chart to cycle metrics. Pressure charts, min/max envelopes and additional
 chart controls below are follow-up requirements, not implemented controls.
 

@@ -12,8 +12,8 @@
   const wind=v=>metricUnits()?v*1.609344:v;
   const rain=v=>metricUnits()?v*25.4:v;
   const temperatureUnit=()=>metricUnits()?'°C':'°F',windUnit=()=>metricUnits()?'km/h':'mph';
-  const series=(v,index)=>index===1?temperature(v):index===2?wind(v):index===5?rain(v):v;
-  const metricNames=()=>['','Temperature ('+temperatureUnit()+')','Wind peaks ('+windUnit()+')','Light (lx)','Humidity (%)','Rain / 5 min ('+(metricUnits()?'mm':'in')+')'];
+  const series=(v,index)=>index===1?temperature(v):index===2?wind(v):index>=5?rain(v):v;
+  const metricNames=()=>['','Temperature ('+temperatureUnit()+')','Wind peaks ('+windUnit()+')','Light (lx)','Humidity (%)','Rain / hour ('+(metricUnits()?'mm':'in')+')','Observed rain total ('+(metricUnits()?'mm':'in')+')'];
   const windDescription=value=>!metricUnits()?value:value.replace(/([\d.]+(?:\s+to\s+[\d.]+)?)\s*mph\b/g,part=>part.replace(/\d+(?:\.\d+)?/g,v=>Math.round(Number(v)*1.609344)).replace('mph','km/h'));
 
   const zones = {'EST5EDT,M3.2.0,M11.1.0':'America/New_York','CST6CDT,M3.2.0,M11.1.0':'America/Chicago','MST7MDT,M3.2.0,M11.1.0':'America/Denver','MST7':'America/Phoenix','PST8PDT,M3.2.0,M11.1.0':'America/Los_Angeles','UTC0':'UTC'};
@@ -128,18 +128,20 @@
     const data = rows.filter(row => finite(row[metric]));
     chart.setAttribute('aria-label', metricNames()[metric] + ' over 24 hours, missing samples are gaps');
     if (!data.length) { if (rows.length) text('trend-status','No received samples for ' + metricNames()[metric].toLowerCase() + '.'); drawHome();return; }
-    const values = data.map(row => series(row[metric],metric)), low = metric===5?0:Math.min(...values), high = Math.max(...values), range = high > low ? high - low : 1;
-    text('trend-status',metricNames()[metric] + ' · ' + rounded(low) + ' to ' + rounded(high) + ' · ' + data.length + (metric===5?' complete intervals':' observed minutes'));
+    const values = data.map(row => series(row[metric],metric)), low = metric>=5?0:Math.min(...values), high = Math.max(...values), range = high > low ? high - low : 1;
+    const digits=metric>=5&&!metricUnits()?2:1;
+    text('trend-status',metricNames()[metric] + ' · ' + rounded(low,digits) + ' to ' + rounded(high,digits) + ' · ' + data.length + (metric>=5?' complete intervals':' observed minutes'));
     const x = i => 62 + i * 874 / 1439, y = value => 218 - (value - low) * 185 / range;
     for (const value of [low, high]) {
       chart.append(svg('line',{x1:62,y1:y(value),x2:936,y2:y(value),stroke:'var(--line)'}));
-      const label = svg('text',{x:54,y:y(value)+5,'text-anchor':'end',fill:'var(--muted)','font-size':14});label.textContent=rounded(value);chart.append(label);
+      const label = svg('text',{x:54,y:y(value)+5,'text-anchor':'end',fill:'var(--muted)','font-size':14});label.textContent=rounded(value,digits);chart.append(label);
     }
     if(metric===5){
-      rows.forEach((row,i)=>{if(finite(row[5])){const top=y(series(row[5],5));chart.append(svg('line',{x1:x(i),y1:top,x2:x(i),y2:218,stroke:'var(--cyan)','stroke-width':2}));if(top===218)chart.append(svg('circle',{cx:x(i),cy:218,r:1,fill:'var(--cyan)'}));}});
+      rows.forEach((row,i)=>{if(finite(row[5])){const top=y(series(row[5],5));chart.append(svg('line',{x1:x(i),y1:top,x2:x(i),y2:218,stroke:'var(--cyan)','stroke-width':20}));if(top===218)chart.append(svg('circle',{cx:x(i),cy:218,r:1,fill:'var(--cyan)'}));}});
     }
     let path = '', connected = false;
-    if(metric!==5)rows.forEach((row,i) => {
+    if(metric===6){let previous=-10;rows.forEach((row,i)=>{if(row[0]%5)return;if(!finite(row[6])){connected=false;return;}const xx=x(i).toFixed(2),yy=y(series(row[6],6)).toFixed(2);path+=(connected&&i-previous===5?'H'+xx+'V'+yy:'M'+xx+','+yy);connected=true;previous=i;});}
+    if(metric<5)rows.forEach((row,i) => {
       if (!finite(row[metric])) { connected=false;return; }
       path += (connected ? 'L' : 'M') + x(i).toFixed(2) + ',' + y(series(row[metric],metric)).toFixed(2);
       if (!connected && (!rows[i+1] || !finite(rows[i+1][metric]))) chart.append(svg('circle',{cx:x(i),cy:y(row[metric]),r:2,fill:'var(--cyan)'}));
@@ -167,9 +169,10 @@
         const page=await get('/api/history?offset='+offset+'&count=120'+(end===undefined?'':'&end='+end));
         if(!Number.isSafeInteger(page.end)||page.total!==1440||!Array.isArray(page.rows)||page.next_offset<=offset||page.next_offset>1440||page.rows.length!==page.next_offset-offset)throw Error('Invalid history page');
         if(end!==undefined&&end!==page.end)throw Error('History window changed');end=page.end;
-        for(const row of page.rows)if(!Array.isArray(row)||row.length!==6||!Number.isSafeInteger(row[0])||row[0]!==end-1439+next.length||row.slice(1).some(v=>v!==null&&!finite(v)))throw Error('Invalid history samples');else next.push(row);
+        for(const row of page.rows)if(!Array.isArray(row)||row.length!==7||!Number.isSafeInteger(row[0])||row[0]!==end-1439+next.length||row.slice(1).some(v=>v!==null&&!finite(v)))throw Error('Invalid history samples');else next.push(row);
         offset=page.next_offset;
       }while(offset<1440);
+      let total=0;for(const row of next){if(finite(row[6])){total+=row[6];row[6]=total;}}
       rows=next;drawHistory();
     }catch(e){text('trend-status','History unavailable · '+e.message+(rows.length?' · previous chart retained':''));}finally{historyBusy=false;}
   }
@@ -177,8 +180,8 @@
   $('history-chart').addEventListener('pointerdown', inspect);
   function inspect(event) {
     if(!rows.length)return;const box=$('history-chart').getBoundingClientRect(),x=(event.clientX-box.left)*960/box.width;
-    let i=Math.max(0,Math.min(1439,Math.round((x-62)*1439/874)));if(metric===5)i=Math.max(0,Math.min(1439,i+(5-rows[i][0]%5)%5));const row=rows[i];
-    text('trend-reading',time(row[0]*60)+' · '+(finite(row[metric])?rounded(series(row[metric],metric))+' '+metricNames()[metric].match(/\((.*)\)/)[1]:(metric===5?'Incomplete or unavailable interval':'No received sample')));
+    let i=Math.max(0,Math.min(1439,Math.round((x-62)*1439/874)));if(metric>=5){const step=metric===5?60:5;i=Math.max(0,Math.min(1439,i+(step-rows[i][0]%step)%step));}const row=rows[i];
+    text('trend-reading',time(row[0]*60)+' · '+(finite(row[metric])?rounded(series(row[metric],metric),metric>=5&&!metricUnits()?2:1)+' '+metricNames()[metric].match(/\((.*)\)/)[1]:(metric>=5?'Incomplete or unavailable interval':'No received sample')));
   }
   async function periods(type) {
     let offset=0,total;const result=[];let metadata;

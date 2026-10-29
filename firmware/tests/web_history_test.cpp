@@ -27,8 +27,8 @@ int main(){
   assert(web_history::encode(doc,store,end,0,120));
   assert(!doc.overflowed());
   for(auto row:doc["rows"].as<JsonArray>())for(unsigned field=1;field<5;++field)assert(!row[field].isNull()&&row[field].as<float>()==0);
-  assert(doc["rows"][rain_index][5].as<float>()>0.019f);
-  assert(!doc["rows"][rain_index+5][5].isNull() && doc["rows"][rain_index+5][5].as<float>()==0);
+  assert(doc["rows"][rain_index][6].as<float>()>0.019f);
+  assert(!doc["rows"][rain_index+5][6].isNull() && doc["rows"][rain_index+5][6].as<float>()==0);
   assert(doc["rows"][0][5].isNull());
   assert(store.accepted==accepted); // A browser read cannot freshen weather.
   assert(web_history::encode(doc,store,end,1439,120));

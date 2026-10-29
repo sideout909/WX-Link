@@ -410,12 +410,16 @@ void renderMeasurement(){
   }
 }
 void renderTrends() {
-  const char* titles[] = {metricUnits()?"Temperature (C)":"Temperature (F)",metricUnits()?"Wind peaks (km/h)":"Wind peaks (mph)","Light (lux)","Humidity (%)",metricUnits()?"Rain / 5 min (mm)":"Rain / 5 min (in)"};
+  const char* titles[] = {metricUnits()?"Temperature (C)":"Temperature (F)",metricUnits()?"Wind peaks (km/h)":"Wind peaks (mph)","Light (lux)","Humidity (%)",metricUnits()?"Rain / hour (mm)":"Rain / hour (in)",metricUnits()?"Rain total (mm)":"Rain total (in)"};
   text(titles[metric],12,50,kCyan);
   text("tap chart to change",170,53,kMuted,&fonts::Font0);
   const uint64_t end = dataNow()/60000, begin = end>=1439 ? end-1439 : 0;
+  float cumulative[288];for(float& v:cumulative)v=NAN;
+  const uint64_t first=(begin+4)/5*5;float total=0;
+  if(metric==5)for(uint64_t m=first;m<=end && (m-first)/5<288;m+=5){const auto r=store->rain_timeline.window(m*60000,300000);if(r.valid&&r.complete){total+=r.tips/100.0f;cumulative[(m-first)/5]=weather_units::rain(total,metricUnits());}}
   auto valueAt=[&](uint64_t m,float& v){
-    if(metric==4){if(m%5)return false;const auto r=store->rain_timeline.window(m*60000,300000);if(!r.valid||!r.complete)return false;v=weather_units::rain(r.tips/100.0f,metricUnits());return true;}
+    if(metric==4){if(m%60)return false;const auto r=store->rain_timeline.window(m*60000,3600000);if(!r.valid||!r.complete)return false;v=weather_units::rain(r.tips/100.0f,metricUnits());return true;}
+    if(metric==5){if(m<first || m%5 || (m-first)/5>=288 || !std::isfinite(cumulative[(m-first)/5]))return false;v=cumulative[(m-first)/5];return true;}
     const auto* b=store->bucket(m);return b&&bucketValue(*b,v);
   };
   float low=INFINITY,high=-INFINITY;unsigned count=0;
@@ -424,11 +428,12 @@ void renderTrends() {
     if (valueAt(m,v)) { low=fminf(low,v);high=fmaxf(high,v);++count; }
   }
   if (!count) { text("No samples for this metric",30,105,kMuted);return; }
-  text(String(low,1)+" to "+String(high,1),12,72,kMuted,&fonts::Font0);
-  if(metric==4)low=0;
+  text(String(low,metric>=4&&!metricUnits()?2:1)+" to "+String(high,metric>=4&&!metricUnits()?2:1),12,72,kMuted,&fonts::Font0);
+  if(metric>=4)low=0;
   const float range = high>low ? high-low : 1;
   canvas.drawFastHLine(16,161,288,kMuted);
   // One vertical min/max mark per screen column; empty columns stay blank.
+  int previous_y=-1;
   for (int x=0;x<288;++x) {
     // Keep "now" at the right edge even before UTC sync, when the uptime
     // minute index is smaller than the displayed 24-hour window.
@@ -441,8 +446,11 @@ void renderTrends() {
     }
     if (std::isfinite(minv)) {
       const int top=156-int((maxv-low)/range*67), bottom=metric==4?156:156-int((minv-low)/range*67);
-      canvas.drawFastVLine(16+x,top,max(1,bottom-top+1),kCyan);
-    }
+      if(metric==5 && previous_y>=0)canvas.drawLine(15+x,previous_y,16+x,top,kCyan);
+      else if(metric==4)canvas.fillRect(13+x,top,7,max(1,bottom-top+1),kCyan);
+      else canvas.drawFastVLine(16+x,top,max(1,bottom-top+1),kCyan);
+      previous_y=top;
+    } else previous_y=-1;
   }
   text("24 hours ago",16,165,kMuted,&fonts::Font0);
   text("now",282,165,kMuted,&fonts::Font0);
@@ -826,7 +834,7 @@ void touch() {
       else if(header_target==display_preferences::HeaderTarget::Outdoor){measurement_detail=0;dirty=true;}
       else if(start_y>=188){alerts_open=true;detail_scroll=0;dirty=true;}
       else if(page==2){if(start_y<62){forecast_hourly=!forecast_hourly;forecast_index=0;}else ++forecast_index;detail_scroll=0;dirty=true;}
-      else if(page==1 && start_y>=44 && start_y<187){metric=(metric+1)%5;dirty=true;}
+      else if(page==1 && start_y>=44 && start_y<187){metric=(metric+1)%6;dirty=true;}
       else if(page==0 && start_y>=44 && start_y<184){measurement_detail=start_y<136?(start_x<180?0:1):start_x<108?2:start_x<212?3:(!replay&&lightning_tracker.view(dataNow()).show_lightning?6:4);dirty=true;}
       status("tap");
     }
